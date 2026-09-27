@@ -5,6 +5,7 @@ on:
       - arena/01a0e373-chatgpt-upi-extractor
     paths:
       - .github/workflows/mcp-relay.yml
+      - .github/relay-req.json
 permissions:
   contents: write
 jobs:
@@ -13,27 +14,40 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: probe
+      - name: relay
+        env:
+          MCP_URL: ${{ secrets.MCP_URL }}
         run: |
           OUT=.github/relay-out.txt
           {
-            echo "=== A) runner egress check (GET /) ==="
-            for hp in fs.ethan2026.shop:443 fs.ethan2026.shop:8443 mcp.ethan2026.shop:443; do
-              code=$(curl -4 -sS --connect-timeout 8 --max-time 12 -o /tmp/o -w '%{http_code}' "https://$hp/" 2>/tmp/e || echo CURL_FAIL)
-              echo "$hp -> $code | body: $(head -c 150 /tmp/o 2>/dev/null | tr '\n' ' ') | err: $(head -c 120 /tmp/e 2>/dev/null | tr '\n' ' ')"
-            done
-            echo
-            echo "=== B) tokenless POST probes (MCP initialize) ==="
-            for host in fs.ethan2026.shop mcp.ethan2026.shop; do
-              for path in "/" "/mcp" "/mcp/" "/api" "/rpc" "/jsonrpc"; do
-                code=$(curl -4 -sS --connect-timeout 8 --max-time 12 -o /tmp/r -w '%{http_code}' "https://$host$path" \
-                  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
-                  --data-raw '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"arena-agent","version":"1.0"}}}' 2>/dev/null || echo CURL_FAIL)
-                echo "POST https://$host$path -> $code | $(head -c 220 /tmp/r 2>/dev/null | tr '\n' ' ')"
-              done
-            done
-            echo
-            echo "=== RELAY PROBE DONE ==="
+            if [ -z "${MCP_URL:-}" ]; then
+              echo "SECRET_NOT_SET: add repository secret MCP_URL"
+              exit 0
+            fi
+            if [ ! -f .github/relay-req.json ]; then
+              echo "NO_REQUESTS: .github/relay-req.json not found"
+              exit 0
+            fi
+            echo "relay run $(date -u +%FT%TZ)"
+            jq -c '.requests[]' .github/relay-req.json > /tmp/reqs.jsonl || { echo "BAD_REQUESTS_JSON"; exit 0; }
+            SID=""
+            i=0
+            while IFS= read -r req; do
+              i=$((i+1))
+              echo "=== REQUEST $i ==="
+              printf '%s\n' "$req"
+              echo "=== RESPONSE $i ==="
+              HDR=/tmp/h_$i; ERR=/tmp/e_$i
+              ARGS=(-sS --connect-timeout 15 --max-time 45 -D "$HDR" "$MCP_URL" -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream")
+              [ -n "$SID" ] && ARGS+=(-H "Mcp-Session-Id: $SID")
+              BODY="$(curl "${ARGS[@]}" --data-raw "$req" 2>"$ERR")"; RC=$?
+              if [ "$RC" -ne 0 ]; then echo "(curl exit: $RC)"; cat "$ERR"; fi
+              printf '%s\n\n' "$BODY"
+              echo "--- status ---"
+              head -1 "$HDR" 2>/dev/null || true
+              if [ -z "$SID" ]; then SID="$(grep -i '^mcp-session-id:' "$HDR" 2>/dev/null | head -1 | tr -d '\r' | cut -d' ' -f2)"; fi
+            done < /tmp/reqs.jsonl
+            echo "=== RELAY DONE ($i request(s)) ==="
           } > "$OUT" 2>&1
           cat "$OUT"
       - name: push response
@@ -41,5 +55,5 @@ jobs:
           git config user.name "arena-relay"
           git config user.email "arena-relay@users.noreply.github.com"
           git add .github/relay-out.txt
-          git commit -qm "relay: probe output"
+          git commit -qm "relay: response" || exit 0
           git push origin HEAD:refs/heads/arena/01a0e373-chatgpt-upi-extractor
