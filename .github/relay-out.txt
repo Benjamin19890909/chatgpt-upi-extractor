@@ -1,0 +1,20 @@
+=== A) runner egress check (GET /) ===
+fs.ethan2026.shop:443 -> 200 | body: {"ok":true,"name":"arena-fs-bridge","version":"1.0.0","mode":"sandbox","workspace":"C:\\Users\\xiaob\\arena-fs-workspace","maxBytes":10485760,"endpoin | err: 
+fs.ethan2026.shop:8443 -> 200 | body: {"ok":true,"name":"arena-fs-bridge","version":"1.0.0","mode":"sandbox","workspace":"C:\\Users\\xiaob\\arena-fs-workspace","maxBytes":10485760,"endpoin | err: 
+mcp.ethan2026.shop:443 -> 404 | body: {"jsonrpc":"2.0","error":{"code":-32004,"message":"Not found"},"id":null} | err: 
+
+=== B) tokenless POST probes (MCP initialize) ===
+POST https://fs.ethan2026.shop/ -> 404 | {"ok":false,"error":{"code":"E_NOT_FOUND","message":"未知路径 /"}}
+POST https://fs.ethan2026.shop/mcp -> 401 | {"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"令牌无效：放在 URL 路径 /mcp/<token> 或 Authorization: Bearer <token>"}}
+POST https://fs.ethan2026.shop/mcp/ -> 404 | {"ok":false,"error":{"code":"E_NOT_FOUND","message":"未知路径 /mcp/"}}
+POST https://fs.ethan2026.shop/api -> 404 | {"ok":false,"error":{"code":"E_NOT_FOUND","message":"未知路径 /api"}}
+POST https://fs.ethan2026.shop/rpc -> 401 | {"ok":false,"error":{"code":"E_AUTH","message":"令牌无效。请在扩展弹窗中完成配对。"}}
+POST https://fs.ethan2026.shop/jsonrpc -> 404 | {"ok":false,"error":{"code":"E_NOT_FOUND","message":"未知路径 /jsonrpc"}}
+POST https://mcp.ethan2026.shop/ -> 404 | {"jsonrpc":"2.0","error":{"code":-32004,"message":"Not found"},"id":null}
+POST https://mcp.ethan2026.shop/mcp -> 404 | {"jsonrpc":"2.0","error":{"code":-32004,"message":"Not found"},"id":null}
+POST https://mcp.ethan2026.shop/mcp/ -> 404 | {"jsonrpc":"2.0","error":{"code":-32004,"message":"Not found"},"id":null}
+POST https://mcp.ethan2026.shop/api -> 404 | {"jsonrpc":"2.0","error":{"code":-32004,"message":"Not found"},"id":null}
+POST https://mcp.ethan2026.shop/rpc -> 404 | {"jsonrpc":"2.0","error":{"code":-32004,"message":"Not found"},"id":null}
+POST https://mcp.ethan2026.shop/jsonrpc -> 404 | {"jsonrpc":"2.0","error":{"code":-32004,"message":"Not found"},"id":null}
+
+=== RELAY PROBE DONE ===
