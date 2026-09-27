@@ -1,0 +1,31 @@
+name: MCP relay
+on:
+  push:
+    branches:
+      - arena/01a0e373-chatgpt-upi-extractor
+    paths:
+      - .github/workflows/mcp-relay.yml
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: relay
+        run: |
+          echo "=== A) runner egress check (GET /) ==="
+          for hp in fs.ethan2026.shop:443 fs.ethan2026.shop:8443 mcp.ethan2026.shop:443; do
+            code=$(curl -4 -sS --connect-timeout 8 --max-time 12 -o /tmp/o -w '%{http_code}' "https://$hp/" 2>/tmp/e || echo CURL_FAIL)
+            echo "$hp -> $code | body: $(head -c 150 /tmp/o 2>/dev/null | tr '\n' ' ') | err: $(head -c 120 /tmp/e 2>/dev/null | tr '\n' ' ')"
+          done
+          echo
+          echo "=== B) tokenless POST probes (MCP initialize) ==="
+          for host in fs.ethan2026.shop mcp.ethan2026.shop; do
+            for path in "/" "/mcp" "/mcp/" "/api" "/rpc" "/jsonrpc"; do
+              code=$(curl -4 -sS --connect-timeout 8 --max-time 12 -o /tmp/r -w '%{http_code}' "https://$host$path" \
+                -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+                --data-raw '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"arena-agent","version":"1.0"}}}' 2>/dev/null || echo CURL_FAIL)
+              echo "POST https://$host$path -> $code | $(head -c 220 /tmp/r 2>/dev/null | tr '\n' ' ')"
+            done
+          done
+          echo
+          echo "=== RELAY PROBE DONE ==="
